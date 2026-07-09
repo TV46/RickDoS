@@ -32,11 +32,6 @@ user32.GetSystemMetrics.argtypes = [
     ctypes.c_int,
 ]
 
-user32.EnumWindows.restype = wintypes.BOOL
-user32.GetWindowThreadProcessId.restype = wintypes.DWORD
-
-SW_RESTORE = 9
-
 stop        = threading.Event()
 hooks_ready = threading.Event()
 
@@ -154,40 +149,6 @@ def set_volume(percent, mute):
     volume.SetMute(mute, None)
     volume.SetMasterVolumeLevelScalar(percent / 100.0, None)
 
-def bring_process_to_front(pid, timeout=5):
-    hwnd = None
-    end = time.time() + timeout
-
-    EnumProc = ctypes.WINFUNCTYPE(
-        wintypes.BOOL,
-        wintypes.HWND,
-        wintypes.LPARAM
-    )
-
-    while time.time() < end:
-        def callback(h, l):
-            nonlocal hwnd
-
-            proc = wintypes.DWORD()
-            user32.GetWindowThreadProcessId(h, ctypes.byref(proc))
-
-            if proc.value == pid and user32.IsWindowVisible(h):
-                hwnd = h
-                return False  # stop enumeration
-            return True
-
-        user32.EnumWindows(EnumProc(callback), 0)
-
-        if hwnd:
-            user32.ShowWindow(hwnd, SW_RESTORE)
-            user32.BringWindowToTop(hwnd)
-            user32.SetForegroundWindow(hwnd)
-            return hwnd
-
-        time.sleep(0.1)
-
-    return None
-
 def main():
 
     H_POC = user32.CreateDesktopW("PoCSecureDesktop", None, None, 0x0001, 0x10000000, None)
@@ -206,9 +167,8 @@ def main():
         "--kiosk",
         VIDEO_URL
     ])
-    set_volume(0, False)
+    set_volume(10, False)
     hide_taskbar()
-    bring_process_to_front(chrome.pid)
 
     threading.Thread(
         target=hook_thread,
@@ -232,7 +192,7 @@ def main():
     stop.wait()
     time.sleep(0.1)
     user32.SwitchDesktop(H_DEF)
-    set_volume(25, True)
+    set_volume(0, True)
     show_taskbar()
     user32.CloseDesktop(H_POC)
     user32.CloseDesktop(H_DEF)
