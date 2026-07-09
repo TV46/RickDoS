@@ -5,7 +5,6 @@ import subprocess
 from ctypes import wintypes
 from pycaw.pycaw import AudioUtilities
 
-
 user32   = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
 shell32  = ctypes.windll.shell32
@@ -40,6 +39,20 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
                 ("flags",  ctypes.c_ulong), ("time",     ctypes.c_ulong),
                 ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))]
 
+
+WM_SYSCOMMAND = 0x0112
+SC_MINIMIZE = 0xF020
+
+EnumWindowsProc = ctypes.WINFUNCTYPE(
+    wintypes.BOOL,
+    wintypes.HWND,
+    wintypes.LPARAM
+)
+@EnumWindowsProc
+def enum_proc(hwnd, lParam):
+    if user32.IsWindowVisible(hwnd):
+        user32.PostMessageW(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0)
+    return True
 
 keys_down = set()
 
@@ -110,18 +123,6 @@ class SEI(ctypes.Structure):
         ("hProcess", ctypes.c_void_p),
     ]
 
-def trigger():
-    sei = SEI()
-    sei.cbSize = ctypes.sizeof(SEI)
-    sei.fMask  = 0x00000040
-    sei.lpVerb = "runas"
-    sei.lpFile = "cmd.exe"
-    sei.lpParameters = "/c exit"
-    sei.nShow  = 0
-    shell32.ShellExecuteExW(ctypes.byref(sei))
-    if sei.hProcess:
-        kernel32.CloseHandle(sei.hProcess)
-
 def hook_thread():
     h_kb = user32.SetWindowsHookExW(13, kb_proc, None, 0)
     hooks_ready.set()
@@ -158,16 +159,21 @@ def main():
     Y = user32.GetSystemMetrics(SM_CYSCREEN) - 1
 
     user32.SwitchDesktop(H_POC)
-    threading.Thread(target=trigger, daemon=True).start()
     time.sleep(0.05)
     user32.SwitchDesktop(H_DEF)
 
+    subprocess.run(
+        ["taskkill", "/F", "/IM", "chrome.exe"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    user32.EnumWindows(enum_proc, 0)
     chrome = subprocess.Popen([
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         "--kiosk",
         VIDEO_URL
     ])
-    set_volume(10, False)
+    set_volume(25, False)
     hide_taskbar()
 
     threading.Thread(
@@ -198,6 +204,7 @@ def main():
     user32.CloseDesktop(H_DEF)
     chrome.terminate()
     chrome.wait()
+
 
 if __name__ == "__main__":
     main()
