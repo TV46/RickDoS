@@ -58,9 +58,9 @@ def enum_proc_factory(minimise):
 
 keys_down = set()
 
-VK_WIN= 0x5B # win
-VK_CTRL_KEYS = {0x11, 0xA2, 0xA3}
-VK_T = 0x54 # t
+VK_1 = 0xDB
+VK_2 = 0xDD
+VK_3 = 0xDC
 
 @ctypes.WINFUNCTYPE(
     ctypes.c_ssize_t,
@@ -88,9 +88,9 @@ def kb_proc(nCode, wParam, lParam):
 
         # Check Ctrl + Shift + Esc
         if (
-            VK_WIN in keys_down and
-            any(ctrl in keys_down for ctrl in VK_CTRL_KEYS) and
-            VK_T in keys_down
+            VK_1 in keys_down and
+            VK_2 in keys_down and
+            VK_3 in keys_down
         ):
             stop.set()
     return user32.CallNextHookEx(None, nCode, wParam, lParam)
@@ -124,6 +124,17 @@ def set_volume(percent, mute):
     volume.SetMute(mute, None)
     volume.SetMasterVolumeLevelScalar(percent / 100.0, None)
 
+def hide_taskbar():
+    hwnd = user32.FindWindowW("Shell_TrayWnd", None)
+    if hwnd:
+        user32.ShowWindow(hwnd, 0)
+
+def show_taskbar():
+    hwnd = user32.FindWindowW("Shell_TrayWnd", None)
+    if hwnd:
+        user32.ShowWindow(hwnd, 5)
+
+
 def main():
 
     H_POC = user32.CreateDesktopW("PoCSecureDesktop", None, None, 0x0001, 0x10000000, None)
@@ -135,14 +146,9 @@ def main():
     user32.SwitchDesktop(H_POC)
     time.sleep(0.05)
     user32.SwitchDesktop(H_DEF)
-
+    hide_taskbar()
     subprocess.run(
         ["taskkill", "/F", "/IM", "chrome.exe"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    subprocess.run(
-        ["taskkill", "/F", "/IM", "explorer.exe"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -174,8 +180,6 @@ def main():
     ).start()
 
     stop.wait()
-    time.sleep(0.1)
-    subprocess.Popen(["explorer.exe"])
     user32.SwitchDesktop(H_DEF)
     set_volume(0, True)
     user32.CloseDesktop(H_POC)
@@ -183,9 +187,7 @@ def main():
     user32.EnumWindows(enum_proc_factory(False), 0)
     chrome.terminate()
     chrome.wait()
-
-
-
+    show_taskbar()
 
 if __name__ == "__main__":
     main()
