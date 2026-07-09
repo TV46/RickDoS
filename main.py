@@ -6,8 +6,6 @@ from ctypes import wintypes
 from pycaw.pycaw import AudioUtilities
 
 user32   = ctypes.windll.user32
-kernel32 = ctypes.windll.kernel32
-shell32  = ctypes.windll.shell32
 
 user32.CreateDesktopW.restype = ctypes.c_void_p
 user32.OpenDesktopW.restype = ctypes.c_void_p
@@ -40,19 +38,23 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
                 ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))]
 
 
-WM_SYSCOMMAND = 0x0112
-SC_MINIMIZE = 0xF020
-
 EnumWindowsProc = ctypes.WINFUNCTYPE(
     wintypes.BOOL,
     wintypes.HWND,
     wintypes.LPARAM
 )
-@EnumWindowsProc
-def enum_proc(hwnd, lParam):
-    if user32.IsWindowVisible(hwnd):
-        user32.PostMessageW(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0)
-    return True
+
+def enum_proc_factory(minimise):
+    @EnumWindowsProc
+    def enum_proc(hwnd, lParam):
+        if user32.IsWindowVisible(hwnd):
+            if minimise:
+                user32.ShowWindow(hwnd, 6)
+            else:
+                user32.ShowWindow(hwnd, 9)
+        return True
+
+    return enum_proc
 
 keys_down = set()
 
@@ -94,34 +96,6 @@ def kb_proc(nCode, wParam, lParam):
     return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
 VIDEO_URL = "https://anondrop.net/1519715400626081836/Rick%20Astley%20-%20Never%20Gonna%20Give%20You%20Up%20(Official%20Video)%20(4K%20Remaster).mp4"
-SM_CXSCREEN = 0
-SM_CYSCREEN = 1
-
-SW_HIDE = 0
-SW_SHOW = 5
-
-def hide_taskbar():
-    hwnd = user32.FindWindowW("Shell_TrayWnd", None)
-    if hwnd:
-        user32.ShowWindow(hwnd, SW_HIDE)
-
-def show_taskbar():
-    hwnd = user32.FindWindowW("Shell_TrayWnd", None)
-    if hwnd:
-        user32.ShowWindow(hwnd, SW_SHOW)
-
-
-class SEI(ctypes.Structure):
-    _fields_ = [
-        ("cbSize", ctypes.c_ulong), ("fMask", ctypes.c_ulong),
-        ("hwnd", ctypes.c_void_p), ("lpVerb", ctypes.c_wchar_p),
-        ("lpFile", ctypes.c_wchar_p), ("lpParameters", ctypes.c_wchar_p),
-        ("lpDirectory", ctypes.c_wchar_p), ("nShow", ctypes.c_int),
-        ("hInstApp", ctypes.c_void_p), ("lpIDList", ctypes.c_void_p),
-        ("lpClass", ctypes.c_wchar_p), ("hkeyClass", ctypes.c_void_p),
-        ("dwHotKey", ctypes.c_ulong), ("hIconOrMonitor", ctypes.c_void_p),
-        ("hProcess", ctypes.c_void_p),
-    ]
 
 def hook_thread():
     h_kb = user32.SetWindowsHookExW(13, kb_proc, None, 0)
@@ -155,8 +129,8 @@ def main():
     H_POC = user32.CreateDesktopW("PoCSecureDesktop", None, None, 0x0001, 0x10000000, None)
     H_DEF = user32.OpenDesktopW("Default", 0, False, 0x00000100)
 
-    X = user32.GetSystemMetrics(SM_CXSCREEN) - 1
-    Y = user32.GetSystemMetrics(SM_CYSCREEN) - 1
+    X = user32.GetSystemMetrics(0) - 1
+    Y = user32.GetSystemMetrics(1) - 1
 
     user32.SwitchDesktop(H_POC)
     time.sleep(0.05)
@@ -167,14 +141,18 @@ def main():
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    user32.EnumWindows(enum_proc, 0)
+    subprocess.run(
+        ["taskkill", "/F", "/IM", "explorer.exe"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    user32.EnumWindows(enum_proc_factory(True), 0)
     chrome = subprocess.Popen([
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         "--kiosk",
         VIDEO_URL
     ])
     set_volume(25, False)
-    hide_taskbar()
 
     threading.Thread(
         target=hook_thread,
@@ -197,13 +175,16 @@ def main():
 
     stop.wait()
     time.sleep(0.1)
+    subprocess.Popen(["explorer.exe"])
     user32.SwitchDesktop(H_DEF)
     set_volume(0, True)
-    show_taskbar()
     user32.CloseDesktop(H_POC)
     user32.CloseDesktop(H_DEF)
+    user32.EnumWindows(enum_proc_factory(False), 0)
     chrome.terminate()
     chrome.wait()
+
+
 
 
 if __name__ == "__main__":
