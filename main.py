@@ -4,6 +4,8 @@ import time
 import subprocess
 from ctypes import wintypes
 from pycaw.pycaw import AudioUtilities
+import tempfile
+import os
 
 user32   = ctypes.windll.user32
 
@@ -97,6 +99,37 @@ def kb_proc(nCode, wParam, lParam):
 
 VIDEO_URL = "https://rickroll.it/rickroll.mp4"
 
+html_content = """
+<!DOCTYPE html>
+<html>
+<head><style>
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: black;
+}
+video {
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+</style></head>
+<body>
+<video src="VIDEO_URL_PLACEHOLDER" autoplay muted loop></video>
+</body>
+</html>
+""".replace("VIDEO_URL_PLACEHOLDER", VIDEO_URL)
+
+with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as f:
+    f.write(html_content)
+    temp_path = f.name
+
+file_url = "file:///" + temp_path.replace("\\", "/")
+
+
 def hook_thread():
     h_kb = user32.SetWindowsHookExW(13, kb_proc, None, 0)
     hooks_ready.set()
@@ -157,7 +190,8 @@ def main():
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         "--kiosk",
         "--autoplay-policy=no-user-gesture-required",
-        VIDEO_URL
+       # VIDEO_URL
+        file_url
     ])
     set_volume(25, False)
 
@@ -188,6 +222,7 @@ def main():
     user32.EnumWindows(enum_proc_factory(False), 0)
     chrome.terminate()
     chrome.wait()
+    os.remove(temp_path)
     show_taskbar()
 
 if __name__ == "__main__":
