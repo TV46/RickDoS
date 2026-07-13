@@ -4,8 +4,8 @@ import time
 import subprocess
 from ctypes import wintypes
 from pycaw.pycaw import AudioUtilities
-import tempfile
-import os
+from pathlib import Path
+import sys
 
 user32   = ctypes.windll.user32
 
@@ -97,38 +97,13 @@ def kb_proc(nCode, wParam, lParam):
             stop.set()
     return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
-VIDEO_URL = "https://rickroll.it/rickroll.mp4"
+def resource_path(relative_path):
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / relative_path
+    return Path(__file__).resolve().parent / relative_path
 
-html_content = """
-<!DOCTYPE html>
-<html>
-<head><style>
-html, body {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background: black;
-}
-video {
-  width: 100vw;
-  height: 100vh;
-  object-fit: cover;
-  display: block;
-  pointer-events: none;
-}
-</style></head>
-<body>
-<video src="VIDEO_URL_PLACEHOLDER" autoplay loop></video>
-</body>
-</html>
-""".replace("VIDEO_URL_PLACEHOLDER", VIDEO_URL)
-
-with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as f:
-    f.write(html_content)
-    temp_path = f.name
-
-file_url = "file:///" + temp_path.replace("\\", "/")
-
+html_path = resource_path("rickroll.html")
+file_url = html_path.as_uri()
 
 def hook_thread():
     h_kb = user32.SetWindowsHookExW(13, kb_proc, None, 0)
@@ -167,33 +142,43 @@ def show_taskbar():
     if hwnd:
         user32.ShowWindow(hwnd, 5)
 
+def launch_chrome():
+    global chrome
+    chrome = subprocess.Popen([
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        "--kiosk",
+        "--autoplay-policy=no-user-gesture-required",
+        "--disable-background-networking",
+        "--disable-component-update",
+        "--disable-sync",
+        "--no-first-run",
+        "--disable-features=Translate",
+        "--disable-features=MediaSessionService",
+        "--disk-cache-size=1",
+        file_url
+    ])
 
 def main():
-
-    H_POC = user32.CreateDesktopW("PoCSecureDesktop", None, None, 0x0001, 0x10000000, None)
-    H_DEF = user32.OpenDesktopW("Default", 0, False, 0x00000100)
-
-    X = user32.GetSystemMetrics(0) - 1
-    Y = user32.GetSystemMetrics(1) - 1
-
-    user32.SwitchDesktop(H_POC)
-    time.sleep(0.05)
-    user32.SwitchDesktop(H_DEF)
-    hide_taskbar()
     subprocess.run(
         ["taskkill", "/F", "/IM", "chrome.exe"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
     user32.EnumWindows(enum_proc_factory(True), 0)
-    chrome = subprocess.Popen([
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        "--kiosk",
-        "--autoplay-policy=no-user-gesture-required",
-       # VIDEO_URL
-        file_url
-    ])
-    set_volume(25, False)
+    threading.Thread(
+        target=launch_chrome,
+        daemon=True
+    ).start()
+    desk1 = user32.CreateDesktopW("PoCSecureDesktop", None, None, 0x0001, 0x10000000, None)
+    desk2 = user32.OpenDesktopW("Default", 0, False, 0x00000100)
+
+    mouse_x = user32.GetSystemMetrics(0) - 1
+    mouse_y = user32.GetSystemMetrics(1) - 1
+
+    user32.SwitchDesktop(desk1)
+    user32.SwitchDesktop(desk2)
+    hide_taskbar()
+    set_volume(50, False)
 
     threading.Thread(
         target=hook_thread,
@@ -204,25 +189,24 @@ def main():
 
     threading.Thread(
         target=toggle,
-        args=(H_POC, H_DEF),
+        args=(desk1, desk2),
         daemon=True
     ).start()
 
     threading.Thread(
         target=mouse_thread,
-        args=(X, Y),
+        args=(mouse_x, mouse_y),
         daemon=True,
     ).start()
 
     stop.wait()
-    user32.SwitchDesktop(H_DEF)
+    user32.SwitchDesktop(desk2)
     set_volume(0, True)
-    user32.CloseDesktop(H_POC)
-    user32.CloseDesktop(H_DEF)
+    user32.CloseDesktop(desk1)
+    user32.CloseDesktop(desk2)
     user32.EnumWindows(enum_proc_factory(False), 0)
     chrome.terminate()
     chrome.wait()
-    os.remove(temp_path)
     show_taskbar()
 
 if __name__ == "__main__":

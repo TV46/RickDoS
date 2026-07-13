@@ -1,1 +1,1 @@
-python -m PyInstaller --onefile --noconsole main.py
+python -m PyInstaller --onefile --noconsole --add-data "rickroll.mp4;." --add-data "rickroll.html;." main.py
