@@ -156,6 +156,7 @@ def main():
     chrome = subprocess.Popen([
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         "--kiosk",
+        "--autoplay-policy=no-user-gesture-required",
         VIDEO_URL
     ])
     set_volume(25, False)
