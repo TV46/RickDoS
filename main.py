@@ -118,7 +118,7 @@ video {
 }
 </style></head>
 <body>
-<video src="VIDEO_URL_PLACEHOLDER" autoplay muted loop></video>
+<video src="VIDEO_URL_PLACEHOLDER" autoplay loop></video>
 </body>
 </html>
 """.replace("VIDEO_URL_PLACEHOLDER", VIDEO_URL)
