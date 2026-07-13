@@ -95,7 +95,7 @@ def kb_proc(nCode, wParam, lParam):
             stop.set()
     return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
-VIDEO_URL = "https://anondrop.net/1519715400626081836/Rick%20Astley%20-%20Never%20Gonna%20Give%20You%20Up%20(Official%20Video)%20(4K%20Remaster).mp4"
+VIDEO_URL = "https://rickroll.it/rickroll.mp4"
 
 def hook_thread():
     h_kb = user32.SetWindowsHookExW(13, kb_proc, None, 0)
